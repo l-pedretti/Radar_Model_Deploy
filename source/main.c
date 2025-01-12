@@ -109,7 +109,8 @@ static void xensiv_bgt60trxx_interrupt_handler(void* args, cyhal_gpio_event_t ev
 static cyhal_spi_t spi_obj;
 static xensiv_bgt60trxx_mtb_t bgt60_obj;
 static uint16_t bgt60_buffer[NUM_SAMPLES_PER_FRAME] __attribute__((aligned(2)));
-
+float32_t data_to_enqueue[XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS * NUM_DOPPLER_BINS * NUM_RANGE_BINS];
+float32_t data_out[3];
 float32_t temp_frame[XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS][NUM_SAMPLES_PER_FRAME/XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS];
 float32_t frame[NUM_SAMPLES_PER_FRAME];
 cfloat32_t range[NUM_RANGE_BINS * XENSIV_BGT60TRXX_CONF_NUM_CHIRPS_PER_FRAME ];
@@ -356,7 +357,7 @@ static __NO_RETURN void preprocessing_task(void *pvParameters)
         // RDM of 3 Antennas is ready to be used.
 
         // Prepare data for enqueue
-        float data_to_enqueue[XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS * NUM_DOPPLER_BINS * NUM_RANGE_BINS];
+
         int index = 0;
         for(int k = 0; k < XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS; k++)
         {
@@ -364,10 +365,14 @@ static __NO_RETURN void preprocessing_task(void *pvParameters)
         	{
         		for(int j = 0; j < NUM_RANGE_BINS; j++)
         		{
-        			data_to_enqueue[index++] = cabs(doppler[k][i * NUM_DOPPLER_BINS + j]);
+        			data_to_enqueue[index] = cabs(doppler[k][i * NUM_DOPPLER_BINS + j]);
+        			index++;
+
         		}
+
         	}
         }
+
         // Enqueue the data
         if (IMAI_enqueue(data_to_enqueue) != 0)
         {
@@ -376,9 +381,9 @@ static __NO_RETURN void preprocessing_task(void *pvParameters)
         }
 
         // Dequeue the data
-        float data_out[3];
-        if (IMAI_dequeue(data_out) != 0)
+        if (IMAI_dequeue(data_out) == -2)
         {
+
         	printf("Failed to dequeue data\r\n");
         	abort();
         }
@@ -387,6 +392,7 @@ static __NO_RETURN void preprocessing_task(void *pvParameters)
         {
         	printf("Confidence for class %d: %f\n", i, data_out[i]);
         }
+
 
 	}
 }
